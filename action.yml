@@ -1,0 +1,72 @@
+name: Netbird connect
+description: Connect workflow to Netbird network
+
+inputs:
+  setup-key:
+    required: true
+  preshared-key:
+    required: true
+  hostname:
+    required: false
+    default: 'github-ci-runner'
+  management-url:
+    required: false
+    default: https://vpn.rocket.chat:443
+  args:
+    required: false
+    default: ''
+  test-ip:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check Runner OS
+      if: ${{ runner.os != 'Linux' }}
+      shell: bash
+      run: |
+        echo "Linux only"
+        exit 1
+
+    - name: Install Netbird
+      shell: bash
+      env:
+        USE_BIN_INSTALL: true
+      run: |
+        curl -fsSL https://pkgs.netbird.io/install.sh | sh
+
+    - name: Connect Netbird
+      shell: bash
+      env:
+        SETUP_KEY: ${{ inputs.setup-key }}
+        ADDITIONAL_ARGS: ${{ inputs.args }}
+        HOSTNAME: ${{ inputs.hostname }}
+        MANAGEMENT_URL: ${{ inputs.management-url }}
+        PRESHARED_KEY: ${{ inputs.preshared-key }}
+      run: |
+        if [ -z "${HOSTNAME}" ]; then
+          HOSTNAME="github-$(hostname)"
+        fi
+
+        sudo netbird up \
+          --setup-key=${SETUP_KEY} \
+          --hostname=${HOSTNAME} \
+          --management-url=${MANAGEMENT_URL} \
+          --preshared-key=${PRESHARED_KEY} \
+          ${ADDITIONAL_ARGS}
+
+    - name: Wait for network reachability
+      shell: bash
+      env:
+        TARGET: ${{ inputs.test-ip }}
+      run: |
+        for i in {1..12}; do
+          if ping -c1 -W1 "$TARGET" >/dev/null 2>&1; then
+            echo "Connectivity OK"
+            exit 0
+          fi
+          echo "Waiting for connectivity..."
+          sleep 5
+        done
+        echo "Timeout waiting for connectivity"
+        exit 1
