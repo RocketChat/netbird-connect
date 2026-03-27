@@ -52,7 +52,7 @@
 
 ```yaml
 - name: Connect to NetBird
-  uses: Rocket.Chat/netbird-connect@main
+  uses: RocketChat/netbird-connect@main
   with:
     setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
     preshared-key: ${{ secrets.NETBIRD_PSK }}
@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Connect to NetBird
-        uses: Rocket.Chat/netbird-connect@main
+        uses: RocketChat/netbird-connect@main
         with:
           setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
           preshared-key: ${{ secrets.NETBIRD_PSK }} # Allows connection with other peers
@@ -156,7 +156,7 @@ Use the action in any workflow step after the above secrets and variables are co
 
 ```yaml
 - name: Connect to NetBird
-  uses: ./.github/actions/netbird-connect
+  uses: RocketChat/netbird-connect@main
   with:
     setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
     preshared-key: ${{ secrets.NETBIRD_PSK }}
