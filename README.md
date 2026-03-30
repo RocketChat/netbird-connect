@@ -101,7 +101,7 @@ jobs:
 | `setup-key` | ✅ | — | NetBird setup key used to authenticate the runner. Store as a GitHub secret. |
 | `preshared-key` | ✅ | — | NetBird preshared key that allows the runner to communicate with other peers. Store as a GitHub secret. |
 | `test-ip` | ✅ | — | IP address of a peer on your NetBird network used to verify the tunnel is active. |
-| `management-url` | ❌ | `https://api.netbird.io:443` | Your NetBird management server URL. |
+| `management-url` | ❌ | `https://vpn.rocket.chat:443` | Your NetBird management server URL. |
 | `hostname` | ❌ | `github-ci-runner` | Name the runner will appear as in your NetBird dashboard. |
 | `args` | ❌ | `''` | Extra arguments passed directly to `netbird up` (e.g. `--log-level debug`). |
 
