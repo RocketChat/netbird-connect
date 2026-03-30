@@ -1,6 +1,8 @@
- NetBird Connect — GitHub Action
+# NetBird Connect — GitHub Action
 
-> Securely connect our GitHub Actions runners to our private NetBird network — giving our CI/CD pipelines direct access to AWS/Cloud resources without exposing them to the public internet.
+> Securely connect your GitHub Actions runners to your private NetBird network — giving your CI/CD pipelines direct access to private resources without exposing them to the public internet.
+
+> Based on https://github.com/Alemiz112/netbird-connect
 
 ---
 
@@ -25,16 +27,11 @@
 │                       NetBird Network                           │
 │                                                                 │
 │   ┌──────────────────┐         ┌──────────────────────────────┐ │
-│   │                  │         │            AWS VPC           │ │
-│   │ vpn.rocket.chat  │◄───────►│                              │ │
+│   │                  │         │         Private Network      │ │
+│   │  NetBird Peer    │◄───────►│                              │ │
 │   │                  │  Peer   │  ┌──────────┐  ┌─────────┐   │ │
-│   └──────────────────┘  Mesh   │  │    EC2   │  │   RDS   │   │ │
-│                                │  │ Instance │  │Database │   │ │
-│                                │  └──────────┘  └─────────┘   │ │
-│                                │                              │ │
-│                                │  ┌──────────┐  ┌─────────┐   │ │
-│                                │  │   EKS    │  │ Elastic │   │ │
-│                                │  │ Cluster  │  │  Cache  │   │ │
+│   └──────────────────┘  Mesh   │  │  Server  │  │Database │   │ │
+│                                │  │          │  │         │   │ │
 │                                │  └──────────┘  └─────────┘   │ │
 │                                └──────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
@@ -42,9 +39,9 @@
 
 **In 4 steps:**
 1. **Install** — Downloads and installs the NetBird client on the runner
-2. **Authenticate** — Connects using our setup key and registers the runner on the network
-3. **Verify** — Pings a known IP to confirm the tunnel is live
-4. **Done** — All subsequent workflow steps have full access to our private network
+2. **Authenticate** — Connects using your setup key and registers the runner on the network
+3. **Verify** — Pings a known peer IP to confirm the tunnel is live
+4. **Done** — All subsequent workflow steps have full access to your private network
 
 ---
 
@@ -52,14 +49,15 @@
 
 ```yaml
 - name: Connect to NetBird
-  uses: RocketChat/netbird-connect@main
+  uses: Rocket.Chat/netbird-connect@main
   with:
     setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
     preshared-key: ${{ secrets.NETBIRD_PSK }}
     test-ip: ${{ vars.NETBIRD_TEST_IP }}
+    management-url: https://your-netbird-management-url:443
 ```
 
-### Full Example — Deploy to a Private EC2 Instance
+### Full Example — Deploy to a Private Server
 
 ```yaml
 name: Deploy to Production
@@ -77,20 +75,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Connect to NetBird
-        uses: RocketChat/netbird-connect@main
+        uses: Rocket.Chat/netbird-connect@main
         with:
           setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
-          preshared-key: ${{ secrets.NETBIRD_PSK }} # Allows connection with other peers
-          test-ip: ${{ vars.NETBIRD_TEST_IP }}  # IP of our NetBird peer relevant to the workflow
+          preshared-key: ${{ secrets.NETBIRD_PSK }}    # Allows connection with other peers
+          test-ip: ${{ vars.NETBIRD_TEST_IP }}          # IP of a NetBird peer to verify connectivity
+          management-url: https://your-netbird-management-url:443
 
-      # From here, the runner is on our private network
-      - name: Deploy to private EC2
+      # From here, the runner is on your private network
+      - name: Deploy to private server
         run: |
-          ssh ubuntu@10.128.0.5 "cd /app && ./deploy.sh"
+          ssh user@10.0.0.5 "cd /app && ./deploy.sh"
 
       - name: Run DB migration
         run: |
-          psql postgresql://10.128.0.10:5432/mydb -f migrations/latest.sql
+          psql postgresql://10.0.0.10:5432/mydb -f migrations/latest.sql
 ```
 
 ---
@@ -100,67 +99,52 @@ jobs:
 | Input | Required | Default | Description |
 |-------|:--------:|---------|-------------|
 | `setup-key` | ✅ | — | NetBird setup key used to authenticate the runner. Store as a GitHub secret. |
-| `preshared-key` | ✅ | — | NetBird preshared key that allows the runner to communicate with the network. Store as a GitHub secret. |
-| `test-ip` | ✅ | — | IP address of a peer on our NetBird network. Used to verify the tunnel is active (e.g. a bastion/server in the target AWS network) |
-| `management-url` | ❌ | `https://vpn.rocket.chat:443` | Our NetBird management server URL. |
-| `hostname` | ❌ | `github-ci-runner` | Name the runner will appear as in our NetBird dashboard. |
+| `preshared-key` | ✅ | — | NetBird preshared key that allows the runner to communicate with other peers. Store as a GitHub secret. |
+| `test-ip` | ✅ | — | IP address of a peer on your NetBird network used to verify the tunnel is active. |
+| `management-url` | ❌ | `https://api.netbird.io:443` | Your NetBird management server URL. |
+| `hostname` | ❌ | `github-ci-runner` | Name the runner will appear as in your NetBird dashboard. |
 | `args` | ❌ | `''` | Extra arguments passed directly to `netbird up` (e.g. `--log-level debug`). |
 
 ---
 
 ## Setup
 
-> [!IMPORTANT]
-> **`setup-key` and `preshared-key` are managed exclusively by the Security Team.**
-> Do not attempt to generate these yourself — contact **security@rocket.chat** to request them.
+### Step 1 — Generate credentials in your NetBird dashboard
 
----
+1. Go to your NetBird management dashboard
+2. Create a **Setup Key** scoped to the appropriate peer groups for your use case
+3. Optionally configure a **preshared key** if you want peer-to-peer encryption
 
-### Step 1 — Request credentials from the Security Team
+### Step 2 — Add Secrets to your repository
 
-Reach out to **security@rocket.chat** and provide:
-- The **repository** that needs access
-- The **use case** (e.g. "deploy to production EC2", "run DB migrations")
-
-The Security Team will provision a scoped setup key mapped to the correct NetBird groups and routes for your use case.
-
----
-
-### Step 2 — Add Secrets to the repository
-
-Once you receive the credentials, go to **Settings → Secrets and variables → Actions → Secrets** and add:
+Go to **Settings → Secrets and variables → Actions → Secrets** and add:
 
 | Secret name | Value |
 |-------------|-------|
-| `NETBIRD_SETUP_KEY` | Setup key provided by the Security Team |
-| `NETBIRD_PSK` | Preshared key provided by the Security Team |
+| `NETBIRD_SETUP_KEY` | Your NetBird setup key |
+| `NETBIRD_PSK` | Your NetBird preshared key |
 
 > [!WARNING]
 > Never hardcode these values in a workflow file. Always reference them via `${{ secrets.* }}`.
 
----
-
-### Step 3 — Add Variables to the repository
+### Step 3 — Add Variables to your repository
 
 Go to **Settings → Secrets and variables → Actions → Variables** and add:
 
 | Variable name | Value |
 |---------------|-------|
-| `NETBIRD_TEST_IP` | NetBird IP of a peer in the target network (provided by the Security Team) |
+| `NETBIRD_TEST_IP` | NetBird IP of a peer in the target network (used to verify connectivity) |
 
----
-
-### Step 4 — Add the action to the workflow
-
-Use the action in any workflow step after the above secrets and variables are configured:
+### Step 4 — Add the action to your workflow
 
 ```yaml
 - name: Connect to NetBird
-  uses: RocketChat/netbird-connect@main
+  uses: Rocket.Chat/netbird-connect@main
   with:
     setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
     preshared-key: ${{ secrets.NETBIRD_PSK }}
     test-ip: ${{ vars.NETBIRD_TEST_IP }}
+    management-url: https://your-netbird-management-url:443
 ```
 
 ---
@@ -168,16 +152,15 @@ Use the action in any workflow step after the above secrets and variables are co
 ## Requirements
 
 - Runner OS: **Linux only** (the action will fail immediately on macOS or Windows)
-- The runner must have internet access to reach `pkgs.netbird.io` (to install) and our management URL (to connect)
+- The runner must have internet access to reach `pkgs.netbird.io` (to install) and your management URL (to connect)
 
 ---
 
 ## Security Notes
 
-- `setup-key` and `preshared-key` are **provisioned and rotated by the Security Team** — never generate or share them outside of GitHub Secrets
-- Always reference credentials via `${{ secrets.* }}` — never hardcode them in a workflow file
-- The NetBird tunnel is encrypted end-to-end with **WireGuard** — traffic between the runner and our AWS resources is never exposed to the public internet
-- The runner is automatically removed from our NetBird network once the workflow job ends (ephemeral peer)
+- Always store `setup-key` and `preshared-key` as GitHub Secrets — never hardcode them in workflow files
+- The NetBird tunnel is encrypted end-to-end with **WireGuard** — traffic between the runner and your private resources is never exposed to the public internet
+- The runner is automatically removed from your NetBird network once the workflow job ends (ephemeral peer)
 
 ---
 
@@ -186,13 +169,13 @@ Use the action in any workflow step after the above secrets and variables are co
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
 | `Linux only` error | Running on macOS/Windows runner | Switch to `ubuntu-latest` |
-| `Timeout waiting for connectivity` | Wrong `test-ip`, peer is offline, or setup key is invalid | Verify the IP is reachable and the setup/preshared keys are valid |
-| `Tunnel connects but services unreachable` | Firewall/security group rules | Ensure the AWS security groups allow traffic from the NetBird IP range |
+| `Timeout waiting for connectivity` | Wrong `test-ip`, peer is offline, or setup key is invalid | Verify the IP is reachable and the setup/preshared keys are correct |
+| `Tunnel connects but services unreachable` | Firewall or routing rules | Ensure your network allows traffic from the NetBird IP range |
 | `Permission denied` on `netbird up` | Missing `sudo` access | Use a standard `ubuntu-latest` runner (sudo is available by default) |
 
 ---
 
-## How the Action Is Structured
+## Action Structure
 
 ```
 netbird-connect/
